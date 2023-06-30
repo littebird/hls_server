@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
 
     Encoder encoder;
     encoder.init();
-    encoder.VOD("/root/hls_server/test.mp4");
+    encoder.VOD("../hls_server/test.mp4");
 
     return a.exec();
 }
