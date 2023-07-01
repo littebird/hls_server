@@ -16,8 +16,11 @@ class Encoder
 public:
     Encoder();
     void init();
+    void close();
     void VOD(std::string file);
     AVStream* add_out_stream(AVFormatContext* outCtx,AVMediaType type);
+    void conduct_ts();
+
 private:
     AVFormatContext *inFormatCtx;
     AVFormatContext *outFormatCtx;
