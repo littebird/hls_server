@@ -17,4 +17,4 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core)
 add_executable(hls_server
   main.cpp encoder.cpp encoder.h
 )
-target_link_libraries(hls_server Qt${QT_VERSION_MAJOR}::Core avutil avcodec avformat swresample avdevice )
+target_link_libraries(hls_server Qt${QT_VERSION_MAJOR}::Core avutil avcodec avformat swresample avdevice avfilter)

@@ -14,7 +14,6 @@ void Encoder::init()
         return ;
     }
 
-
     //分配音频解码器上下文内存
     pAudioCodecCtx=avcodec_alloc_context3(nullptr);
     if(!pAudioCodecCtx){
@@ -30,6 +29,108 @@ void Encoder::init()
 
 }
 
+void Encoder::init_filter(FilteringContext *fctx, AVCodecContext *dec_ctx, AVCodecContext *enc_ctx, const char *filter_spec)
+{
+    char args[512];
+    int ret=0;
+    AVFilter *bufferSrc;
+    AVFilter *bufferSink;
+    AVFilterContext *bufferSrc_ctx;
+    AVFilterContext *bufferSink_ctx;
+    AVFilterInOut *intputs=avfilter_inout_alloc();
+    AVFilterInOut *outputs=avfilter_inout_alloc();
+    AVFilterGraph *filter_graph=avfilter_graph_alloc();
+    if(!intputs||!outputs||!filter_graph){
+        std::cout<<"filter init error \n";
+        return;
+    }
+
+    if(dec_ctx->codec_type==AVMEDIA_TYPE_VIDEO){
+        bufferSrc=const_cast<AVFilter *>(avfilter_get_by_name("buffer"));
+        bufferSink=const_cast<AVFilter *>(avfilter_get_by_name("buffersink"));
+        if(!bufferSink||!bufferSrc){
+            std::cout<<"filtering source or sink element not found\n";
+            return ;
+        }
+
+        snprintf(args, sizeof(args),
+                        "video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
+                        dec_ctx->width, dec_ctx->height, dec_ctx->pix_fmt,
+                        dec_ctx->time_base.num, dec_ctx->time_base.den,
+                        dec_ctx->sample_aspect_ratio.num,
+                        dec_ctx->sample_aspect_ratio.den);
+
+        ret=avfilter_graph_create_filter(&bufferSrc_ctx,bufferSrc,"in",args,nullptr,filter_graph);//创建过滤器实例并将其添加到现有的图形中
+        if(ret<0){
+            std::cout<<"Cannot create buffer source\n";
+            return;
+        }
+        ret = avfilter_graph_create_filter(&bufferSink_ctx, bufferSink, "out",nullptr, nullptr, filter_graph);
+        if(ret<0){
+            std::cout<<"Cannot create buffer sink\n";
+            return;
+        }
+
+        //设置AVOption
+        ret=av_opt_set_bin(bufferSink_ctx,"pix_fmts",(uint8_t*) &enc_ctx->pix_fmt,sizeof(enc_ctx->pix_fmt),AV_OPT_SEARCH_CHILDREN);
+        if(ret<0){
+            std::cout<<"cannot set output pixel format\n";
+            return ;
+        }
+    }else if(dec_ctx->codec_type==AVMEDIA_TYPE_AUDIO){
+        bufferSrc = const_cast<AVFilter *>(avfilter_get_by_name("abuffer"));
+        bufferSink = const_cast<AVFilter *>(avfilter_get_by_name("abuffersink"));
+        if(!bufferSink||!bufferSrc){
+            std::cout<<"filtering source or sink element not found\n";
+            return ;
+        }
+
+        if(!dec_ctx->channel_layout){
+            dec_ctx->channel_layout=av_get_default_channel_layout(dec_ctx->channels);//默认音频通道布局
+        }
+
+        snprintf(args, sizeof(args),
+                 "time_base=%d/%d:sample_rate=%d:sample_fmt=%s:channel_layout=0x%I64x",
+                 dec_ctx->time_base.num, dec_ctx->time_base.den, dec_ctx->sample_rate,
+                 av_get_sample_fmt_name(dec_ctx->sample_fmt),
+                 dec_ctx->channel_layout);
+
+        ret=avfilter_graph_create_filter(&bufferSrc_ctx,bufferSrc,"in",args,nullptr,filter_graph);//创建过滤器实例并将其添加到现有的图形中
+        if(ret<0){
+            std::cout<<"Cannot create buffer source\n";
+            return;
+        }
+        ret = avfilter_graph_create_filter(&bufferSink_ctx, bufferSink, "out",nullptr, nullptr, filter_graph);
+        if(ret<0){
+            std::cout<<"Cannot create buffer sink\n";
+            return;
+        }
+
+        //设置AVOption
+        ret = av_opt_set_bin(bufferSink_ctx, "sample_fmts",(uint8_t*)&enc_ctx->sample_fmt, sizeof(enc_ctx->sample_fmt),AV_OPT_SEARCH_CHILDREN);
+        if(ret<0){
+            std::cout<<"cannot set output sample format\n";
+            return ;
+        }
+
+        ret = av_opt_set_bin(bufferSink_ctx, "channel_layouts",(uint8_t*)&enc_ctx->channel_layout,
+                             sizeof(enc_ctx->channel_layout),AV_OPT_SEARCH_CHILDREN);
+        if(ret<0){
+            std::cout<<"cannot set output channel layouts\n";
+            return ;
+        }
+
+        ret = av_opt_set_bin(bufferSink_ctx, "sample_rates",
+                        (uint8_t*)&enc_ctx->sample_rate, sizeof(enc_ctx->sample_rate),
+                        AV_OPT_SEARCH_CHILDREN);
+        if(ret<0){
+            std::cout<<"cannot set output sample rates\n";
+            return ;
+        }
+
+    }
+}
+
 void Encoder::close()//释放资源
 {
     avformat_free_context(inFormatCtx);
@@ -41,10 +142,10 @@ void Encoder::close()//释放资源
 }
 
 
-void Encoder::VOD(std::string file)
+void Encoder::open_input_file(const char *file)
 {
     //根据url打开码流，并分析选择匹配的解复用器
-    int ret=avformat_open_input(&inFormatCtx,file.c_str(),nullptr,nullptr);
+    int ret=avformat_open_input(&inFormatCtx,file,nullptr,nullptr);
     if(ret!=0){
         std::cout<<"error avformat_open_input: \n";
         return ;
@@ -93,13 +194,87 @@ void Encoder::VOD(std::string file)
         return ;
     }
 
+    avcodec_open2(pVideoCodecCtx,pVideoCodec,nullptr);//打开对应编解码器
+    avcodec_open2(pAudioCodecCtx,pAudioCodec,nullptr);
+
     //文件信息
     std::cout<<"--------------- File Information ----------------\n";
-    av_dump_format(inFormatCtx, 0, file.c_str(), 0);
+    av_dump_format(inFormatCtx, 0, file, 0);
     std::cout<<"-------------------------------------------------\n";
 
-    conduct_ts();
 
+}
+
+void Encoder::open_output_file(const char *file)
+{
+    AVStream *outStream;//out流
+    AVStream *inStream;//in流
+    AVCodecContext *decode_ctx, *encode_ctx;
+    AVCodec *encoder;
+    int ret;
+
+    //使用 avformat_alloc_output_context2 函数就可以根据文件名分配合适的 AVFormatContext 管理结构。
+    avformat_alloc_output_context2(&outFormatCtx,nullptr,nullptr,file);
+    if(!outFormatCtx){
+        av_log(nullptr, AV_LOG_ERROR, "Could not create output context\n");
+        return;
+    }
+    for(int i=0;i<inFormatCtx->nb_streams;i++){
+        outStream=avformat_new_stream(outFormatCtx,nullptr);// 创建输出码流的AVStream
+        if (!outStream) {
+            av_log(nullptr, AV_LOG_ERROR, "Failed allocating output stream\n"); // 分配输出流失败
+            return ;
+        }
+
+        inStream=inFormatCtx->streams[i];
+
+        //将流中编解码器需要的信息AVcodecparameters添加到编解码器context
+        avcodec_parameters_to_context(decode_ctx,inStream->codecpar);
+        avcodec_parameters_to_context(encode_ctx,outStream->codecpar);
+
+        if(decode_ctx->codec_type==AVMEDIA_TYPE_AUDIO||decode_ctx->codec_type==AVMEDIA_TYPE_VIDEO){
+            encoder=const_cast<AVCodec *>(avcodec_find_decoder(decode_ctx->codec_id));//找到编码器
+
+            if(decode_ctx->codec_type==AVMEDIA_TYPE_VIDEO){//视频
+                encode_ctx->height=decode_ctx->height;//高
+                encode_ctx->width=decode_ctx->width;//宽
+                encode_ctx->sample_aspect_ratio=decode_ctx->sample_aspect_ratio;// 长宽比
+                encode_ctx->pix_fmt=encoder->pix_fmts[0]; //从支持的像素格式列表中获取第一种格式
+                encode_ctx->time_base=decode_ctx->time_base;
+            }else{//音频
+                encode_ctx->sample_rate=decode_ctx->sample_rate;//每秒采样数
+                encode_ctx->channel_layout=decode_ctx->channel_layout;//音频通道布局
+                encode_ctx->channels=av_get_channel_layout_nb_channels(encode_ctx->channel_layout);//音频通道数
+                encode_ctx->sample_fmt=encoder->sample_fmts[0];//从支持的采样格式列表中获取第一种格式
+                encode_ctx->time_base={1,encode_ctx->sample_rate};
+            }
+
+            ret=avcodec_open2(encode_ctx,encoder,nullptr);//打开编码器
+            if (ret < 0) {
+                av_log(nullptr, AV_LOG_ERROR, "Cannot open video encoder for stream #%u\n", i); // 无法打开流的视频编码器
+                return ;
+            }
+
+        }
+
+        if(outFormatCtx->flags&AVFMT_GLOBALHEADER){
+            encode_ctx->flags|=AV_CODEC_FLAG_GLOBAL_HEADER;
+        }
+
+        if (!(outFormatCtx->oformat->flags & AVFMT_NOFILE)) {
+            ret = avio_open(&outFormatCtx->pb, file, AVIO_FLAG_WRITE); //打开FFmpeg输出文件
+            if (ret < 0) {
+                av_log(nullptr, AV_LOG_ERROR, "Could not open output file '%s'", file); // 无法打开输出文件
+                return ;
+            }
+        }
+    }
+
+    ret=avformat_write_header(outFormatCtx,nullptr); //写入输出文件头
+    if(ret<0){
+        av_log(nullptr, AV_LOG_ERROR, "Error occurred when opening output file\n"); // 打开输出文件时出错
+        return ;
+    }
 }
 
 AVStream *Encoder::add_out_stream(AVFormatContext *outCtx, AVMediaType type)
@@ -165,6 +340,7 @@ void Encoder::conduct_ts()
     }
 
     const char* output_name="../hls_server/test.ts";
+
     avformat_alloc_output_context2(&outFormatCtx,nullptr,nullptr,output_name);
     const AVOutputFormat* oformat=outFormatCtx->oformat;
 
@@ -176,7 +352,7 @@ void Encoder::conduct_ts()
     }
 
 
-    //添加视频信息到输出ctx
+    //添加视频信息到输出ctx,须先添加视频流
     if(m_videoIndex!=-1){
         video_stream=add_out_stream(outFormatCtx,AVMEDIA_TYPE_VIDEO);
         std::cout<<"add video stream \n";
@@ -240,7 +416,7 @@ void Encoder::conduct_ts()
     }
 
 
-    int res=av_write_trailer(outFormatCtx);
+    int res=av_write_trailer(outFormatCtx);//写文件尾
     if(res<0){
         std::cout<<"Could not av_write_trailer of stream\n";
         return ;

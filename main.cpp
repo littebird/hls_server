@@ -9,7 +9,8 @@ int main(int argc, char *argv[])
 
     Encoder encoder;
     encoder.init();
-    encoder.VOD("../hls_server/test.mp4");
+    encoder.open_input_file("../hls_server/test.mp4");
+//    encoder.conduct_ts();
 
     return a.exec();
 }
