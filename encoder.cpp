@@ -27,6 +27,8 @@ void Encoder::init()
         return ;
     }
 
+
+
 }
 
 void Encoder::init_filter(FilteringContext *fctx, AVCodecContext *dec_ctx, AVCodecContext *enc_ctx, const char *filter_spec)
@@ -37,10 +39,10 @@ void Encoder::init_filter(FilteringContext *fctx, AVCodecContext *dec_ctx, AVCod
     AVFilter *bufferSink;
     AVFilterContext *bufferSrc_ctx;
     AVFilterContext *bufferSink_ctx;
-    AVFilterInOut *intputs=avfilter_inout_alloc();
+    AVFilterInOut *inputs=avfilter_inout_alloc();
     AVFilterInOut *outputs=avfilter_inout_alloc();
     AVFilterGraph *filter_graph=avfilter_graph_alloc();
-    if(!intputs||!outputs||!filter_graph){
+    if(!inputs||!outputs||!filter_graph){
         std::cout<<"filter init error \n";
         return;
     }
@@ -77,6 +79,7 @@ void Encoder::init_filter(FilteringContext *fctx, AVCodecContext *dec_ctx, AVCod
             std::cout<<"cannot set output pixel format\n";
             return ;
         }
+
     }else if(dec_ctx->codec_type==AVMEDIA_TYPE_AUDIO){
         bufferSrc = const_cast<AVFilter *>(avfilter_get_by_name("abuffer"));
         bufferSink = const_cast<AVFilter *>(avfilter_get_by_name("abuffersink"));
@@ -100,7 +103,7 @@ void Encoder::init_filter(FilteringContext *fctx, AVCodecContext *dec_ctx, AVCod
             std::cout<<"Cannot create buffer source\n";
             return;
         }
-        ret = avfilter_graph_create_filter(&bufferSink_ctx, bufferSink, "out",nullptr, nullptr, filter_graph);
+        ret = avfilter_graph_create_filter(&bufferSink_ctx, bufferSink, "out",nullptr, nullptr, filter_graph);//创建过滤器实例并将其添加到现有的图形中
         if(ret<0){
             std::cout<<"Cannot create buffer sink\n";
             return;
@@ -127,6 +130,70 @@ void Encoder::init_filter(FilteringContext *fctx, AVCodecContext *dec_ctx, AVCod
             std::cout<<"cannot set output sample rates\n";
             return ;
         }
+
+    }
+
+    //设置inputs和outputs结构
+    outputs->name=av_strdup("in");
+    outputs->filter_ctx=bufferSrc_ctx;
+    outputs->pad_idx=0;
+    outputs->next=nullptr;
+    inputs->name=av_strdup("out");
+    inputs->filter_ctx=bufferSink_ctx;
+    inputs->pad_idx=0;
+    inputs->next=nullptr;
+    if(!outputs->name||!inputs->name){
+        std::cout<<"filter init error \n";
+        return;
+    }
+
+    //将由字符串描述的图形添加到图形中
+    if((ret=avfilter_graph_parse_ptr(filter_graph,filter_spec,&inputs,&outputs,nullptr))<0){
+        return ;
+    }
+
+    //检查有效性并配置图中的所有链接和格式
+    if((ret=avfilter_graph_config(filter_graph,nullptr))<0){
+        return ;
+    }
+
+    //填充FilteringContext
+    fctx->bufferSink_ctx=bufferSink_ctx;
+    fctx->bufferSrc_ctx=bufferSrc_ctx;
+    fctx->filter_graph=filter_graph;
+
+    //释放资源
+    avfilter_inout_free(&inputs);
+    avfilter_inout_free(&outputs);
+
+}
+
+void Encoder::init_filters()
+{
+    const char* filter_spec;
+    AVCodecContext *dec_ctx;
+    AVCodecContext *enc_ctx;
+
+    filter_ctx=(FilteringContext *)av_malloc_array(inFormatCtx->nb_streams,sizeof(*filter_ctx));
+    if(!filter_ctx){
+        std::cout<<"filters init error \n";
+        return;
+    }
+
+    for(int i=0;i<inFormatCtx->nb_streams;i++){
+        filter_ctx[i].bufferSink_ctx=nullptr;
+        filter_ctx[i].bufferSrc_ctx=nullptr;
+        filter_ctx[i].filter_graph=nullptr;
+        if(!(inFormatCtx->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_AUDIO||inFormatCtx->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_VIDEO))
+            continue;
+        if(inFormatCtx->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_VIDEO){
+            filter_spec="null";//视频直通（虚拟）滤波器
+        }else filter_spec="anull";//音频直通（虚拟）滤波器
+
+        avcodec_parameters_to_context(dec_ctx,inFormatCtx->streams[i]->codecpar);
+        avcodec_parameters_to_context(enc_ctx,outFormatCtx->streams[i]->codecpar);
+
+        init_filter(filter_ctx,dec_ctx,enc_ctx,filter_spec);
 
     }
 }
@@ -274,6 +341,133 @@ void Encoder::open_output_file(const char *file)
     if(ret<0){
         av_log(nullptr, AV_LOG_ERROR, "Error occurred when opening output file\n"); // 打开输出文件时出错
         return ;
+    }
+}
+
+int Encoder::encode_write_frame(AVFrame *filter_frame, int stream_idx, int got_pkt)
+{
+    int ret;
+    AVPacket enc_pkt;
+    AVCodecContext *enc_ctx;
+
+    enc_pkt.data=nullptr;
+    enc_pkt.size=0;
+    av_init_packet(&enc_pkt);//初始化数据包
+
+    avcodec_parameters_to_context(enc_ctx,outFormatCtx->streams[stream_idx]->codecpar);
+
+    ret=avcodec_send_frame(enc_ctx,filter_frame);
+    if(ret<0){
+        std::cout<<"Error encoding send frame\n";
+        return ret;
+    }
+
+    got_pkt=avcodec_receive_packet(enc_ctx,&enc_pkt);
+
+    av_frame_free(&filter_frame);//释放file_frame
+    if(!got_pkt){//0即成功收到packet
+
+        //准备enc_pkt
+        enc_pkt.stream_index=stream_idx;
+        //将64位整数重缩放为2个具有指定舍入的有理数
+        enc_pkt.dts=av_rescale_q_rnd(enc_pkt.dts,outFormatCtx->streams[stream_idx]->time_base,
+                                     outFormatCtx->streams[stream_idx]->time_base,
+                                     (AVRounding)(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX));
+        enc_pkt.pts=av_rescale_q_rnd(enc_pkt.pts,outFormatCtx->streams[stream_idx]->time_base,
+                                     outFormatCtx->streams[stream_idx]->time_base,
+                                     (AVRounding)(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX));
+        enc_pkt.duration=av_rescale_q(enc_pkt.duration,outFormatCtx->streams[stream_idx]->time_base,outFormatCtx->streams[stream_idx]->time_base);
+
+
+        ret=av_interleaved_write_frame(outFormatCtx,&enc_pkt);//将数据包写入输出媒体文件
+
+        return ret;
+    }else {
+        return ret;
+    }
+
+}
+
+void Encoder::filter_encode_write_frame(AVFrame *frame, int stream_idx)//过滤编码写入帧
+{
+    int ret;
+    AVFrame *filter_frame;
+
+    ret=av_buffersrc_add_frame_flags(filter_ctx[stream_idx].bufferSrc_ctx,frame,-1); //将解码后的帧推入 filtergraph
+    if(ret<0){
+        std::cout<<"Error while feeding the filtergraph\n";
+        return;
+    }
+
+    //从filtergraph 中拉出过滤的帧
+    while(1){
+        filter_frame=av_frame_alloc();
+        if(!filter_frame){
+            return;
+        }
+
+        // av_buffersink_get_frame 从接收器获取一个带有过滤数据的帧,并将其放入帧中
+        ret=av_buffersink_get_frame(filter_ctx[stream_idx].bufferSink_ctx,filter_frame);
+        if(ret<0){
+            if(ret==AVERROR(EAGAIN)||ret==AVERROR_EOF){//如果没有更多的输出帧 - returns AVERROR(EAGAIN)||如果刷新并且没有更多的帧用于输出 - returns AVERROR_EOF
+                ret=0;
+            }
+            av_frame_free(&filter_frame); //释放 filt_frame
+            break;
+        }
+
+        filter_frame->pict_type=AV_PICTURE_TYPE_NONE;
+
+        ret=encode_write_frame(filter_frame,stream_idx,-1);
+
+        if(ret<0)break;
+    }
+
+}
+
+void Encoder::flush_encoder(int stream_idx)
+{
+    int ret;
+    while(1){
+        ret=encode_write_frame(nullptr,stream_idx,0);
+        if(ret<0)
+            break;
+    }
+}
+
+void Encoder::VOD(const char *inputfile)
+{
+    int ret;
+    int stream_idx;
+    AVPacket packet;
+    AVFrame *frame;
+
+    init();//初始化
+    open_input_file(inputfile);//打开输入文件
+    open_output_file("");//打开输出文件
+    init_filters();//初始化AVFilter相关的结构体
+
+    //循环读取文件中所有数据包
+    while(1){
+        if((ret=av_read_frame(inFormatCtx,&packet))<0)
+            break;
+        stream_idx=packet.stream_index;
+
+        if(filter_ctx[stream_idx].filter_graph){
+            //重新编码和过滤帧
+            frame=av_frame_alloc();
+            if(!frame){
+                ret = AVERROR(ENOMEM);
+                break;
+            }
+            //将64位整数重缩放为2个具有指定舍入的有理数。
+            packet.dts=av_rescale_q_rnd(packet.dts,inFormatCtx->streams[stream_idx]->time_base,
+                                        inFormatCtx->streams[stream_idx]->time_base,(AVRounding)(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX));
+            packet.pts=av_rescale_q_rnd(packet.pts,inFormatCtx->streams[stream_idx]->time_base,
+                                        inFormatCtx->streams[stream_idx]->time_base,(AVRounding)(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX));
+            //视频解码或者音频解码
+
+        }
     }
 }
 

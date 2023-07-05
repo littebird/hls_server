@@ -9,6 +9,8 @@ extern "C" {
     #include <libavdevice/avdevice.h>
     #include <libswresample/swresample.h>
     #include <libavfilter/avfilter.h>
+    #include <libavfilter/buffersrc.h>
+    #include <libavfilter/buffersink.h>
 }
 
 struct FilteringContext{
@@ -23,9 +25,14 @@ public:
     Encoder();
     void init();
     void init_filter(FilteringContext *fctx,AVCodecContext *dec_ctx,AVCodecContext *enc_ctx, const char *filter_spec);
+    void init_filters();
     void close();
     void open_input_file(const char *file);
     void open_output_file(const char *file);
+    int encode_write_frame(AVFrame *filter_frame,int stream_idx,int got_pkt);
+    void filter_encode_write_frame(AVFrame *frame,int stream_idx);
+    void flush_encoder(int stream_idx);
+    void VOD(const char *inputfile);
     AVStream* add_out_stream(AVFormatContext* outCtx,AVMediaType type);
     void conduct_ts();
 
