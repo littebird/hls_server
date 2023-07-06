@@ -174,6 +174,13 @@ void Encoder::init_filters()
     AVCodecContext *dec_ctx;
     AVCodecContext *enc_ctx;
 
+    dec_ctx=avcodec_alloc_context3(nullptr);
+    enc_ctx=avcodec_alloc_context3(nullptr);
+    if(!dec_ctx||!enc_ctx){
+        std::cout<<"error avcodec_alloc_context3: \n";
+        return ;
+    }
+
     filter_ctx=(FilteringContext *)av_malloc_array(inFormatCtx->nb_streams,sizeof(*filter_ctx));
     if(!filter_ctx){
         std::cout<<"filters init error \n";
@@ -200,10 +207,11 @@ void Encoder::init_filters()
 
 void Encoder::close()//释放资源
 {
+    av_free(filter_ctx);
     avformat_free_context(inFormatCtx);
     avformat_free_context(outFormatCtx);
-    av_bsf_free(&vbsf_h264_toannexb);
-    av_bsf_free(&absf_aac_adtstoasc);
+//    av_bsf_free(&vbsf_h264_toannexb);
+//    av_bsf_free(&absf_aac_adtstoasc);
     avcodec_free_context(&pAudioCodecCtx);
     avcodec_free_context(&pVideoCodecCtx);
 }
@@ -262,6 +270,7 @@ void Encoder::open_input_file(const char *file)
     }
 
     avcodec_open2(pVideoCodecCtx,pVideoCodec,nullptr);//打开对应编解码器
+
     avcodec_open2(pAudioCodecCtx,pAudioCodec,nullptr);
 
     //文件信息
@@ -283,31 +292,56 @@ void Encoder::open_output_file(const char *file)
     //使用 avformat_alloc_output_context2 函数就可以根据文件名分配合适的 AVFormatContext 管理结构。
     avformat_alloc_output_context2(&outFormatCtx,nullptr,nullptr,file);
     if(!outFormatCtx){
-        av_log(nullptr, AV_LOG_ERROR, "Could not create output context\n");
+        std::cout<<"Could not create output context\n";
         return;
     }
+
+    decode_ctx=avcodec_alloc_context3(nullptr);
+    encode_ctx=avcodec_alloc_context3(nullptr);
+    if(!decode_ctx||!encode_ctx){
+        std::cout<<"error avcodec_alloc_context3: \n";
+        return ;
+    }
+
+
     for(int i=0;i<inFormatCtx->nb_streams;i++){
         outStream=avformat_new_stream(outFormatCtx,nullptr);// 创建输出码流的AVStream
         if (!outStream) {
-            av_log(nullptr, AV_LOG_ERROR, "Failed allocating output stream\n"); // 分配输出流失败
+            std::cout<<"Failed allocating output stream\n";// 分配输出流失败
             return ;
         }
 
         inStream=inFormatCtx->streams[i];
 
         //将流中编解码器需要的信息AVcodecparameters添加到编解码器context
-        avcodec_parameters_to_context(decode_ctx,inStream->codecpar);
-        avcodec_parameters_to_context(encode_ctx,outStream->codecpar);
+        ret=avcodec_parameters_to_context(decode_ctx,inStream->codecpar);
+        if(ret<0){
+            std::cout<<"error avcodec_parameters_to_context: \n";
+            return ;
+        }
+        ret=avcodec_parameters_to_context(encode_ctx,outStream->codecpar);
+        if(ret<0){
+            std::cout<<"error avcodec_parameters_to_context: \n";
+            return ;
+        }
+
 
         if(decode_ctx->codec_type==AVMEDIA_TYPE_AUDIO||decode_ctx->codec_type==AVMEDIA_TYPE_VIDEO){
-            encoder=const_cast<AVCodec *>(avcodec_find_decoder(decode_ctx->codec_id));//找到编码器
+
+            encoder=const_cast<AVCodec *>(avcodec_find_encoder(decode_ctx->codec_id));//找到编码器
+
+
 
             if(decode_ctx->codec_type==AVMEDIA_TYPE_VIDEO){//视频
+
                 encode_ctx->height=decode_ctx->height;//高
                 encode_ctx->width=decode_ctx->width;//宽
                 encode_ctx->sample_aspect_ratio=decode_ctx->sample_aspect_ratio;// 长宽比
+
                 encode_ctx->pix_fmt=encoder->pix_fmts[0]; //从支持的像素格式列表中获取第一种格式
-                encode_ctx->time_base=decode_ctx->time_base;
+
+//                encode_ctx->time_base=decode_ctx->time_base;
+
             }else{//音频
                 encode_ctx->sample_rate=decode_ctx->sample_rate;//每秒采样数
                 encode_ctx->channel_layout=decode_ctx->channel_layout;//音频通道布局
@@ -315,10 +349,10 @@ void Encoder::open_output_file(const char *file)
                 encode_ctx->sample_fmt=encoder->sample_fmts[0];//从支持的采样格式列表中获取第一种格式
                 encode_ctx->time_base={1,encode_ctx->sample_rate};
             }
-
+std::cout<<encode_ctx->time_base.den<<" 1111111\n";
             ret=avcodec_open2(encode_ctx,encoder,nullptr);//打开编码器
             if (ret < 0) {
-                av_log(nullptr, AV_LOG_ERROR, "Cannot open video encoder for stream #%u\n", i); // 无法打开流的视频编码器
+                std::cout<<"Cannot open  encoder for stream\n";// 无法打开流的编码器
                 return ;
             }
 
@@ -331,7 +365,7 @@ void Encoder::open_output_file(const char *file)
         if (!(outFormatCtx->oformat->flags & AVFMT_NOFILE)) {
             ret = avio_open(&outFormatCtx->pb, file, AVIO_FLAG_WRITE); //打开FFmpeg输出文件
             if (ret < 0) {
-                av_log(nullptr, AV_LOG_ERROR, "Could not open output file '%s'", file); // 无法打开输出文件
+                std::cout<<"Could not open output file \n";// 无法打开输出文件
                 return ;
             }
         }
@@ -339,7 +373,7 @@ void Encoder::open_output_file(const char *file)
 
     ret=avformat_write_header(outFormatCtx,nullptr); //写入输出文件头
     if(ret<0){
-        av_log(nullptr, AV_LOG_ERROR, "Error occurred when opening output file\n"); // 打开输出文件时出错
+        std::cout<<"Error occurred when opening output file\n";// 打开输出文件时出错
         return ;
     }
 }
@@ -353,6 +387,12 @@ int Encoder::encode_write_frame(AVFrame *filter_frame, int stream_idx, int got_p
     enc_pkt.data=nullptr;
     enc_pkt.size=0;
     av_init_packet(&enc_pkt);//初始化数据包
+
+    enc_ctx=avcodec_alloc_context3(nullptr);
+    if(!enc_ctx){
+        std::cout<<"error avcodec_alloc_context3: \n";
+        return -1;
+    }
 
     avcodec_parameters_to_context(enc_ctx,outFormatCtx->streams[stream_idx]->codecpar);
 
@@ -439,19 +479,26 @@ void Encoder::VOD(const char *inputfile)
 {
     int ret;
     int stream_idx;
-    AVPacket packet;
+    AVPacket *packet;
     AVFrame *frame;
+    AVCodecContext *dec_ctx;
 
     init();//初始化
     open_input_file(inputfile);//打开输入文件
-    open_output_file("");//打开输出文件
+    open_output_file("../hls_server/test.avi");//打开输出文件
     init_filters();//初始化AVFilter相关的结构体
+
+    dec_ctx=avcodec_alloc_context3(nullptr);
+    if(!dec_ctx){
+        std::cout<<"error avcodec_alloc_context3: \n";
+        return ;
+    }
 
     //循环读取文件中所有数据包
     while(1){
-        if((ret=av_read_frame(inFormatCtx,&packet))<0)
+        if((ret=av_read_frame(inFormatCtx,packet))<0)
             break;
-        stream_idx=packet.stream_index;
+        stream_idx=packet->stream_index;
 
         if(filter_ctx[stream_idx].filter_graph){
             //重新编码和过滤帧
@@ -461,14 +508,59 @@ void Encoder::VOD(const char *inputfile)
                 break;
             }
             //将64位整数重缩放为2个具有指定舍入的有理数。
-            packet.dts=av_rescale_q_rnd(packet.dts,inFormatCtx->streams[stream_idx]->time_base,
+            packet->dts=av_rescale_q_rnd(packet->dts,inFormatCtx->streams[stream_idx]->time_base,
                                         inFormatCtx->streams[stream_idx]->time_base,(AVRounding)(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX));
-            packet.pts=av_rescale_q_rnd(packet.pts,inFormatCtx->streams[stream_idx]->time_base,
+            packet->pts=av_rescale_q_rnd(packet->pts,inFormatCtx->streams[stream_idx]->time_base,
                                         inFormatCtx->streams[stream_idx]->time_base,(AVRounding)(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX));
             //视频解码或者音频解码
 
+            avcodec_parameters_to_context(dec_ctx,inFormatCtx->streams[stream_idx]->codecpar);
+            ret=avcodec_send_packet(dec_ctx,packet);
+            if(ret<0){
+                std::cout<<"Decoding failed\n";
+                break;
+            }
+
+            if((avcodec_receive_frame(dec_ctx,frame)!=0)){
+                av_frame_free(&frame);
+            }else {
+//                frame->pts=av_frame_get_best_effort_timestamp(frame);
+
+                filter_encode_write_frame(frame,stream_idx);//编码一帧
+
+            }
+
+        }else{
+            //重新复制此帧而不重新编码
+            packet->dts=av_rescale_q_rnd(packet->dts,inFormatCtx->streams[stream_idx]->time_base,
+                                        outFormatCtx->streams[stream_idx]->time_base,(AVRounding)(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX));
+            packet->pts=av_rescale_q_rnd(packet->pts,inFormatCtx->streams[stream_idx]->time_base,
+                                        outFormatCtx->streams[stream_idx]->time_base,(AVRounding)(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX));
+
+            ret=av_interleaved_write_frame(outFormatCtx,packet);// 将数据包写入输出媒体文件
+            if(ret<0)
+                return ;
         }
+        av_packet_free(&packet);
     }
+
+    //刷新过滤器和编码器
+    for(int i=0;i<inFormatCtx->nb_streams;i++){
+        //刷新过滤器
+        if(!filter_ctx[i].filter_graph){
+            continue;
+        }
+        filter_encode_write_frame(nullptr,i);
+
+        //刷新编码器
+        flush_encoder(i);
+    }
+    av_write_trailer(outFormatCtx);
+
+    av_packet_free(&packet);
+    av_frame_free(&frame);
+    close();
+
 }
 
 AVStream *Encoder::add_out_stream(AVFormatContext *outCtx, AVMediaType type)
