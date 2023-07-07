@@ -2,6 +2,7 @@
 #define ENCODER_H
 
 #include <iostream>
+
 extern "C" {
     #include <libavutil/samplefmt.h>
     #include <libavformat/avformat.h>
@@ -13,45 +14,46 @@ extern "C" {
     #include <libavfilter/buffersink.h>
 }
 
-struct FilteringContext{
-    AVFilterContext *bufferSink_ctx;
-    AVFilterContext *bufferSrc_ctx;
+typedef struct FilteringContext {
+    AVFilterContext *buffersink_ctx;
+    AVFilterContext *buffersrc_ctx;
     AVFilterGraph *filter_graph;
-};
+
+    AVPacket *enc_pkt;//编码数据包
+    AVFrame *filtered_frame;//过滤后的帧
+} FilteringContext;
+
+typedef struct StreamContext {
+    AVCodecContext *dec_ctx;
+    AVCodecContext *enc_ctx;
+
+    AVFrame *dec_frame;//解码帧
+} StreamContext;
 
 class Encoder
 {
 public:
     Encoder();
-    void init();
-    void init_filter(FilteringContext *fctx,AVCodecContext *dec_ctx,AVCodecContext *enc_ctx, const char *filter_spec);
-    void init_filters();
+    int init_filter(FilteringContext *fctx,AVCodecContext *dec_ctx,AVCodecContext *enc_ctx, const char *filter_spec);
+    int init_filters();
     void close();
-    void open_input_file(const char *file);
-    void open_output_file(const char *file);
-    int encode_write_frame(AVFrame *filter_frame,int stream_idx,int got_pkt);
-    void filter_encode_write_frame(AVFrame *frame,int stream_idx);
-    void flush_encoder(int stream_idx);
+    int open_input_file(const char *filename);
+    int open_output_file(const char *filename);
+    int encode_write_frame(unsigned int stream_idx,int flush);
+    int filter_encode_write_frame(AVFrame *frame,unsigned int stream_idx);
+    int flush_encoder(unsigned int stream_idx);
     void VOD(const char *inputfile);
-    AVStream* add_out_stream(AVFormatContext* outCtx,AVMediaType type);
-    void conduct_ts();
 
 private:
-    AVFormatContext *inFormatCtx;
-    AVFormatContext *outFormatCtx;
+    AVFormatContext *ifmt_ctx;
+    AVFormatContext *ofmt_ctx;
 
-    FilteringContext *filter_ctx;
+    FilteringContext *filter_ctx;   //过滤器上下文
+    StreamContext *stream_ctx;      //流上下文
 
     AVBSFContext *absf_aac_adtstoasc;    //aac->adts to asc过滤器
     AVBSFContext *vbsf_h264_toannexb;    //h264->to annexb过滤器
-    AVCodecContext *pAudioCodecCtx;
-    AVCodecContext *pVideoCodecCtx;
-    AVCodec *pAudioCodec;
-    AVCodec *pVideoCodec;
-    AVStream *audio_stream;
-    AVStream *video_stream;
-    int m_audioIndex=-1;
-    int m_videoIndex=-1;
+
 
 };
 
