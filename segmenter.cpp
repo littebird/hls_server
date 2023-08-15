@@ -86,8 +86,6 @@ int segmenter::init_mux()
     }
 
 
-
-
     //添加音频信息到输出context
     if(audio_stream_idx != -1)
     {

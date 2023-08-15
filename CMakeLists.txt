@@ -22,5 +22,8 @@ add_executable(hls_server
   server.cpp
   connection.h
   connection.cpp
+  thread_pool.h
+  thread_pool.cpp
+  threadsafe_queue.h
 )
 target_link_libraries(hls_server Qt${QT_VERSION_MAJOR}::Core avutil avcodec avformat swresample avdevice avfilter)

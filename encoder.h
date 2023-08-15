@@ -51,8 +51,8 @@ private:
     FilteringContext *filter_ctx;   //过滤器上下文
     StreamContext *stream_ctx;      //流上下文
 
-    AVBSFContext *absf_aac_adtstoasc;    //aac->adts to asc过滤器
-    AVBSFContext *vbsf_h264_toannexb;    //h264->to annexb过滤器
+//    AVBSFContext *absf_aac_adtstoasc;    //aac->adts to asc过滤器
+//    AVBSFContext *vbsf_h264_toannexb;    //h264->to annexb过滤器
 
 
 };
