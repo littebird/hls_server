@@ -18,5 +18,9 @@ add_executable(hls_server
   main.cpp encoder.cpp encoder.h
   segmenter.h
   segmenter.cpp
+  server.h
+  server.cpp
+  connection.h
+  connection.cpp
 )
 target_link_libraries(hls_server Qt${QT_VERSION_MAJOR}::Core avutil avcodec avformat swresample avdevice avfilter)
