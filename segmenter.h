@@ -3,7 +3,7 @@
 
 #define OUTPUT_PREFIX  "seg_test"//切割文件前缀
 #define URL_PREFIX     "../hls_server/"
-#define NUM_SEGMENTS    30 //在磁盘上一共最多存储多少个分片
+#define NUM_SEGMENTS    10000 //在磁盘上一共最多存储多少个分片
 #define SEGMENT_DURATION    10//每一片切割多少秒
 
 #include<stdio.h>
