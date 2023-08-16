@@ -32,8 +32,8 @@ public:
 
     template<typename func>
     void submit(func f){//函数模板，提交一个任务到任务队列中
+        work_queue.push(std::function<void()>(f));
 
-        work_queue.push(f);
     }
 private:
     std::atomic_bool done;//原子变量控制线程池的运行

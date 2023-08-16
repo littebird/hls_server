@@ -82,8 +82,6 @@ void Server::start_conn()
                 {
                     //一次性把所有数据读完
 
-//                    pool->submit(std::bind(Connection::process,this->users[sockfd]));
-
                     std::function<void()> task=std::bind(&Connection::process,this->users[sockfd]);
                     pool->submit(task);
 

@@ -6,7 +6,6 @@ Connection::Connection()
 
 }
 
-
 int Connection::m_epollfd=-1;
 void setnonblocking(int fd)
 {
@@ -19,10 +18,10 @@ void addfd(int epollfd, int fd, bool one_shot)
 {
     epoll_event event;
     event.data.fd=fd;
-    event.events=EPOLLIN | EPOLLRDHUP;
+    event.events=EPOLLIN | EPOLLRDHUP ;
     if(one_shot)
     {
-        event.events | EPOLLONESHOT;
+        event.events |= EPOLLONESHOT;
     }
     epoll_ctl(epollfd,EPOLL_CTL_ADD,fd,&event);
 
@@ -79,14 +78,15 @@ bool Connection::read()
     memset(m_read_buf,'\0',sizeof(m_read_buf));
     while(true)
     {
+
         bytes_read=recv(m_sockfd,m_read_buf,READ_BUFFER_SIZE,0);
 
         if(bytes_read==-1)
         {
             if(errno==EAGAIN || errno==EWOULDBLOCK)
             {
-                std::cout<<"continue"<<std::endl;
-                continue;
+                //没有数据
+                break;
             }
             return false;
         }
@@ -97,6 +97,7 @@ bool Connection::read()
         }
         else
         {
+            m_jsonStr.append(m_read_buf);
             break;
         }
     }
@@ -133,9 +134,9 @@ bool Connection::write()
 void Connection::process(Connection *conn_data)
 {
     //线程处理发过来的数据
-    std::cout<<7777<<std::endl;
-     std::cout<<conn_data->m_sockfd<<std::endl;
-//    std::cout<<conn_data->m_read_buf<<std::endl;
+//    std::cout<<conn_data->m_sockfd<<std::endl;
+
+    std::cout<<conn_data->m_jsonStr.size()<<std::endl;
 
          //处理接收到的数据
      //    Encoder encoder;
@@ -152,5 +153,6 @@ void Connection::process(Connection *conn_data)
 //    strcpy(conn_data->m_write_buf,send_data.data());
 
 //    modfd(m_epollfd,conn_data->m_sockfd,EPOLLOUT);
+
 }
 
