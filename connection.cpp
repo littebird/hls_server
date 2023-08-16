@@ -1,6 +1,7 @@
 #include "connection.h"
 
 Connection::Connection()
+    :m_sockfd{-1}
 {
 
 }
@@ -129,14 +130,17 @@ bool Connection::write()
     }
 }
 
-void Connection::process()
+void Connection::process(Connection *conn_data)
 {
     //线程处理发过来的数据
+    std::cout<<7777<<std::endl;
+     std::cout<<conn_data->m_sockfd<<std::endl;
+    std::cout<<conn_data->m_read_buf<<std::endl;
+//    //编辑发送数据
+//    std::string send_data="https://127.0.0.1/xx.m3u8";
+//    conn_data->m_id+=send_data;
+//    strcpy(conn_data->m_write_buf,send_data.data());
 
-    //编辑发送数据
-    std::string send_data="https://127.0.0.1/xx.m3u8";
-    strcpy(m_write_buf,send_data.data());
-
-    modfd(m_epollfd,m_sockfd,EPOLLOUT);
+//    modfd(m_epollfd,conn_data->m_sockfd,EPOLLOUT);
 }
 

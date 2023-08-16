@@ -6,7 +6,8 @@ extern void addfd(int epollfd, int fd, bool one_shot);
 extern void modfd(int epollfd, int fd, int ev);
 Server::Server()
     :m_port{9999},
-     users{std::vector<Connection *>(10000,new Connection())}
+     users{std::vector<Connection *>(10000,new Connection())},
+     pool{std::make_shared<thread_pool>()}
 {
      //创建监听的套接字
      listenfd=socket(PF_INET,SOCK_STREAM,0);
@@ -18,7 +19,7 @@ Server::Server()
      //绑定
      struct sockaddr_in add_ress;
      add_ress.sin_family=AF_INET;
-     add_ress.sin_addr.s_addr=inet_addr("127.0.0.1");
+     add_ress.sin_addr.s_addr=inet_addr("10.252.213.110");
      add_ress.sin_port=htons(m_port);
      bind(listenfd,(struct sockaddr *)&add_ress,sizeof(add_ress));
 
@@ -33,7 +34,6 @@ Server::Server()
      addfd(epollfd,listenfd,false);
      Connection::m_epollfd=epollfd;
 
-     start_conn();
 }
 
 void Server::start_conn()
@@ -41,6 +41,7 @@ void Server::start_conn()
     while(true)
     {
         int num=epoll_wait(epollfd,events,10000,-1);
+
         if(num<0&&(errno!=EINTR))
         {
             std::cout<<"epoll failure"<<std::endl;
@@ -73,6 +74,7 @@ void Server::start_conn()
                 {
                     //一次性把所有数据读完
 //                    pool->append(&userss[sockfd].user_conn);
+                    pool->submit(users[sockfd]->process);
                 }
                 else
                 {

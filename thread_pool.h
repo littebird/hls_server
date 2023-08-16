@@ -7,7 +7,7 @@
 #include <queue>
 #include <functional>
 #include "threadsafe_queue.h"
-
+#include"connection.h"
 class join_threads
 {
 public:
@@ -30,13 +30,13 @@ public:
     ~thread_pool();
     void worker_thread();
     template<typename func>
-    void submit(func f){//函数模板，提交一个任务到任务队列中
-        work_queue.push(std::function<void()>(f));
+    void submit(func f(Connection *conn_data)){//函数模板，提交一个任务到任务队列中
+        work_queue.push(std::function<void(Connection *)>(f));
     }
 private:
     std::atomic_bool done;
     join_threads joiner;
-    threadsafe_queue<std::function<void()>> work_queue;
+    threadsafe_queue<std::function<void(Connection *)>> work_queue;
     std::vector<std::thread> threads;
 };
 

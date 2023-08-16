@@ -18,7 +18,7 @@ class Connection
 {
 public:
     Connection();
-    void process();//处理请求和响应
+    static void process(Connection *conn_data);//处理请求和响应
     void close_conn();//关闭连接
     void init(int sockfd,const sockaddr_in &addr);//初始化新接收的连接
     static int m_epollfd;//所有的socket上的事件都被注册到同一个epoll上
@@ -31,6 +31,7 @@ private:
     char m_write_buf[WRITE_BUFFER_SIZE];
     int m_sockfd;//该http连接的socket
     sockaddr_in m_address; //通信的socket地址
+    std::string m_id;//视频id号
 };
 
 #endif // CONNECTION_H

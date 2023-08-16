@@ -9,7 +9,10 @@
 #include<fcntl.h>
 #include<sys/epoll.h>
 #include<vector>
+#include <boost/shared_ptr.hpp>
 #include"connection.h"
+#include"thread_pool.h"
+
 class Server
 {
 public:
@@ -23,6 +26,8 @@ private:
     epoll_event *events;
 
     std::vector<Connection *> users;//用于保存所有连接进来的客户端
+
+    std::shared_ptr<thread_pool> pool;
 };
 
 #endif // SERVER_H
