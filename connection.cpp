@@ -5,7 +5,6 @@ Connection::Connection()
 
 }
 
-
 int Connection::m_epollfd=-1;
 void setnonblocking(int fd)
 {
@@ -18,7 +17,7 @@ void addfd(int epollfd, int fd, bool one_shot)
 {
     epoll_event event;
     event.data.fd=fd;
-    event.events=EPOLLIN | EPOLLRDHUP;
+    event.events=EPOLLIN | EPOLLRDHUP ;
     if(one_shot)
     {
         event.events |= EPOLLONESHOT;
@@ -78,14 +77,15 @@ bool Connection::read()
     memset(m_read_buf,'\0',sizeof(m_read_buf));
     while(true)
     {
+
         bytes_read=recv(m_sockfd,m_read_buf,READ_BUFFER_SIZE,0);
 
         if(bytes_read==-1)
         {
             if(errno==EAGAIN || errno==EWOULDBLOCK)
             {
-                std::cout<<"continue"<<std::endl;
-                continue;
+                //没有数据
+                break;
             }
             return false;
         }
@@ -96,6 +96,7 @@ bool Connection::read()
         }
         else
         {
+            m_jsonStr.append(m_read_buf);
             break;
         }
     }
@@ -129,27 +130,47 @@ bool Connection::write()
     }
 }
 
-void Connection::process()
+void Connection::process(Connection *conn_data)
 {
     //线程处理发过来的数据
-    QJsonDocument doc(QJsonDocument::fromJson(QByteArray(m_read_buf)));
+    QJsonDocument doc(QJsonDocument::fromJson(QByteArray(conn_data->m_jsonStr.c_str())));
     QJsonObject obj=doc.object();
     std::string id=obj.value("id").toString().toStdString();
     std::string file_name=obj.value("postfix").toString().toStdString();
     std::string data=obj.value("data").toString().toStdString();
 
     //视频数据写入到文件
-     m_file.open("../hls_server/resource/"+id+file_name,std::ios::out|std::ios::app);
-     m_file<<data<<"\n";//数据写入文件
-     m_file.close();//关闭文件
+     conn_data->m_file.open("../hls_server/resource/"+id+file_name,std::ios::out|std::ios::app);
+     conn_data->m_file<<data<<"\n";//数据写入文件
+     conn_data->m_file.close();//关闭文件
 
 //    QString cc(id.c_str());
 //    //编辑发送数据
 
     std::string send_data="http://127.0.0.1/xx.m3u8";
 
-    strcpy(m_write_buf,send_data.data());
+    strcpy(conn_data->m_write_buf,send_data.data());
 
-    modfd(m_epollfd,m_sockfd,EPOLLOUT);
+//    modfd(m_epollfd,conn_data->m_sockfd,EPOLLOUT);
+//    std::cout<<conn_data->m_sockfd<<std::endl;
+
+    std::cout<<conn_data->m_jsonStr.size()<<std::endl;
+
+         //处理接收到的数据
+     //    Encoder encoder;
+     //    encoder.VOD("../hls_server/test.mp4");//转码播放
+         //to do 切片生成m3u8文件
+
+     //    segmenter seg{"../hls_server/tests.ts"};
+     //    seg.init();
+     //    seg.slice();
+
+     //处理将要写的数据
+//    std::string send_data="https://127.0.0.1/xx.m3u8";
+//    conn_data->m_id+=send_data;
+//    strcpy(conn_data->m_write_buf,send_data.data());
+
+//    modfd(m_epollfd,conn_data->m_sockfd,EPOLLOUT);
+
 }
 

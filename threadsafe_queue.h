@@ -19,7 +19,7 @@ public:
         return true;
     }
 
-    void push(T *newVal){
+    void push(T newVal){
         std::shared_ptr<T>data(std::make_shared<T>(std::move(newVal)));
 
         std::unique_lock<std::mutex> lk(mt);

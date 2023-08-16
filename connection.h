@@ -18,15 +18,18 @@
 #include<QJsonObject>
 #include<QByteArray>
 #include<fstream>
+#include "encoder.h"
+#include "segmenter.h"
+
 class Connection
 {
 public:
     Connection();
-    void process();//处理请求和响应
+    static void process(Connection *conn_data);//处理请求和响应
     void close_conn();//关闭连接
     void init(int sockfd,const sockaddr_in &addr);//初始化新接收的连接
     static int m_epollfd;//所有的socket上的事件都被注册到同一个epoll上
-    static const int READ_BUFFER_SIZE=2048;//读缓冲区大小
+    static const int READ_BUFFER_SIZE=4096;//读缓冲区大小
     static const int WRITE_BUFFER_SIZE=1024;//写缓冲区大小
     bool read();//非阻塞读
     bool write();//非阻塞写
@@ -36,6 +39,8 @@ private:
     int m_sockfd;//该http连接的socket
     sockaddr_in m_address; //通信的socket地址
     std::fstream m_file;//文件写操作
+    std::string m_id;//视频id号
+    std::string m_jsonStr;
 };
 
 #endif // CONNECTION_H
