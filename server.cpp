@@ -8,7 +8,7 @@ extern void modfd(int epollfd, int fd, int ev);
 Server::Server()
     :m_port{9999},
      users{std::vector<Connection *>(10000,new Connection())},
-     pool{std::make_shared<thread_pool>()}
+     pool{new thread_pool()}
 {
      //创建监听的套接字
      listenfd=socket(PF_INET,SOCK_STREAM,0);
@@ -80,8 +80,6 @@ void Server::start_conn()
 
                 if(users[sockfd]->read())
                 {
-                    //一次性把所有数据读完
-
                     std::function<void()> task=std::bind(&Connection::process,this->users[sockfd]);
                     pool->submit(task);
 

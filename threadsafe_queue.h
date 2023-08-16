@@ -10,7 +10,7 @@ class threadsafe_queue
 {
 public:
     threadsafe_queue(){}
-    bool try_pop(T& value){
+    bool try_pop(T value){
         std::unique_lock<std::mutex> lk(mt);
         if(data_queue.empty())
             return false;
@@ -20,7 +20,6 @@ public:
     }
 
     void push(T newVal){
-
         std::shared_ptr<T>data(std::make_shared<T>(std::move(newVal)));
 
         std::unique_lock<std::mutex> lk(mt);
@@ -39,4 +38,6 @@ private:
     std::condition_variable data_cond;
 
 };
+
+
 #endif // THREADSAFE_QUEUE_H

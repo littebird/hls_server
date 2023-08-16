@@ -14,6 +14,10 @@
 #include<errno.h>
 #include<string.h>
 #include<iostream>
+#include<QJsonDocument>
+#include<QJsonObject>
+#include<QByteArray>
+#include<fstream>
 #include "encoder.h"
 #include "segmenter.h"
 
@@ -34,6 +38,7 @@ private:
     char m_write_buf[WRITE_BUFFER_SIZE];
     int m_sockfd;//该http连接的socket
     sockaddr_in m_address; //通信的socket地址
+    std::fstream m_file;//文件写操作
     std::string m_id;//视频id号
     std::string m_jsonStr;
 };

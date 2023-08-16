@@ -1,5 +1,4 @@
 #include "connection.h"
-
 Connection::Connection()
     :m_sockfd{-1}
 {
@@ -134,6 +133,25 @@ bool Connection::write()
 void Connection::process(Connection *conn_data)
 {
     //线程处理发过来的数据
+    QJsonDocument doc(QJsonDocument::fromJson(QByteArray(conn_data->m_jsonStr.c_str())));
+    QJsonObject obj=doc.object();
+    std::string id=obj.value("id").toString().toStdString();
+    std::string file_name=obj.value("postfix").toString().toStdString();
+    std::string data=obj.value("data").toString().toStdString();
+
+    //视频数据写入到文件
+     conn_data->m_file.open("../hls_server/resource/"+id+file_name,std::ios::out|std::ios::app);
+     conn_data->m_file<<data<<"\n";//数据写入文件
+     conn_data->m_file.close();//关闭文件
+
+//    QString cc(id.c_str());
+//    //编辑发送数据
+
+    std::string send_data="http://127.0.0.1/xx.m3u8";
+
+    strcpy(conn_data->m_write_buf,send_data.data());
+
+//    modfd(m_epollfd,conn_data->m_sockfd,EPOLLOUT);
 //    std::cout<<conn_data->m_sockfd<<std::endl;
 
     std::cout<<conn_data->m_jsonStr.size()<<std::endl;

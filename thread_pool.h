@@ -7,7 +7,7 @@
 #include <queue>
 #include <functional>
 #include "threadsafe_queue.h"
-#include"connection.h"
+
 class join_threads
 {
 public:
