@@ -33,6 +33,7 @@ public:
     static const int WRITE_BUFFER_SIZE=1024;//写缓冲区大小
     bool read();//非阻塞读
     bool write();//非阻塞写
+    std::string _jsonStr;
 private:
     char m_read_buf[READ_BUFFER_SIZE];
     char m_write_buf[WRITE_BUFFER_SIZE];
@@ -40,7 +41,6 @@ private:
     sockaddr_in m_address; //通信的socket地址
     std::fstream m_file;//文件写操作
     std::string m_id;//视频id号
-    std::string m_jsonStr;
 };
 
 #endif // CONNECTION_H

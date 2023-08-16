@@ -20,7 +20,7 @@ void addfd(int epollfd, int fd, bool one_shot)
     event.events=EPOLLIN | EPOLLRDHUP ;
     if(one_shot)
     {
-        event.events |= EPOLLONESHOT;
+        event.events | EPOLLONESHOT;
     }
     epoll_ctl(epollfd,EPOLL_CTL_ADD,fd,&event);
 
@@ -80,13 +80,14 @@ bool Connection::read()
     {
 
         bytes_read=recv(m_sockfd,m_read_buf,READ_BUFFER_SIZE,0);
-        std::cout<<bytes_read<<std::endl;
 
         if(bytes_read==-1)
         {
             if(errno==EAGAIN || errno==EWOULDBLOCK)
             {
                 //没有数据
+
+                std::cout<<"no data"<<std::endl;
                 break;
             }
             return false;
@@ -98,7 +99,7 @@ bool Connection::read()
         }
         else
         {
-            m_jsonStr.append(m_read_buf);
+            _jsonStr.append(m_read_buf);
             break;
         }
     }
@@ -134,18 +135,18 @@ bool Connection::write()
 
 void Connection::process(Connection *conn_data)
 {
-
+    std::cout<<conn_data->_jsonStr.size()<<std::endl;
     //线程处理发过来的数据
-//    QJsonDocument doc(QJsonDocument::fromJson(QByteArray(conn_data->m_jsonStr.c_str())));
-//    QJsonObject obj=doc.object();
-//    std::string id=obj.value("id").toString().toStdString();
-//    std::string file_name=id+"."+obj.value("postfix").toString().toStdString();
-//    std::string data=obj.value("data").toString().toStdString();
+    QJsonDocument doc(QJsonDocument::fromJson(QByteArray(conn_data->_jsonStr.c_str())));
+    QJsonObject obj=doc.object();
+    std::string id=obj.value("id").toString().toStdString();
+    std::string file_name=id+"."+obj.value("postfix").toString().toStdString();
+    std::string data=obj.value("data").toString().toStdString();
 
-    //视频数据写入到文件
-//     conn_data->m_file.open("../hls_server/resource/"+file_name,std::ios::out|std::ios::app);
-//     conn_data->m_file<<data;//数据写入文件
-//     conn_data->m_file.close();//关闭文件
+//    视频数据写入到文件
+     conn_data->m_file.open("../hls_server/resource/"+file_name,std::ios::out|std::ios::app);
+     conn_data->m_file<<data;//数据写入文件
+     conn_data->m_file.close();//关闭文件
 
 //     std::string full_path="../hls_server/resource/"+file_name;
 //     //处理接收到的数据
@@ -163,6 +164,6 @@ void Connection::process(Connection *conn_data)
 //    strcpy(conn_data->m_write_buf,send_data.data());
 
 //    modfd(m_epollfd,conn_data->m_sockfd,EPOLLOUT);
-
+    conn_data->_jsonStr.clear();
 }
 

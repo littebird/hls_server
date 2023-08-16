@@ -79,8 +79,10 @@ void Server::start_conn()
 
                 if(users[sockfd]->read())
                 {
-                    std::function<void()> task=std::bind(&Connection::process,this->users[sockfd]);
-                    pool->submit(task);
+                    if(*(users[sockfd]->_jsonStr.end()-1)=='\r'){//检查来自对端的数据，以\r为结束符
+                        std::function<void()> task=std::bind(&Connection::process,this->users[sockfd]);
+                        pool->submit(task);
+                    }
 
                 }
                 else
