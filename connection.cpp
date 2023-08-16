@@ -141,14 +141,18 @@ void Connection::process(Connection *conn_data)
     QJsonObject obj=doc.object();
     std::string id=obj.value("id").toString().toStdString();
     std::string file_name=id+"."+obj.value("postfix").toString().toStdString();
-    std::string data=obj.value("data").toString().toStdString();
+    QString data=obj.value("data").toString();
+
+    QByteArray bytes=QByteArray::fromBase64(data.toUtf8());
 
 //    视频数据写入到文件
-     conn_data->m_file.open("../hls_server/resource/"+file_name,std::ios::out|std::ios::app);
-     conn_data->m_file<<data;//数据写入文件
+     std::string full_path="../hls_server/resource/"+file_name;
+     conn_data->m_file.setFileName(QString::fromStdString(full_path));
+     conn_data->m_file.open(QIODevice::WriteOnly);
+     conn_data->m_file.write(bytes);//数据写入文件
      conn_data->m_file.close();//关闭文件
 
-//     std::string full_path="../hls_server/resource/"+file_name;
+
 //     //处理接收到的数据
 //     Encoder encoder;
 //     encoder.VOD(full_path.c_str());//转码播放
