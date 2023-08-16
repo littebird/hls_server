@@ -27,7 +27,7 @@ private:
 
     std::vector<Connection *> users;//用于保存所有连接进来的客户端
 
-    std::shared_ptr<thread_pool> pool;
+    std::shared_ptr<thread_pool<Connection>> pool;
 };
 
 #endif // SERVER_H
