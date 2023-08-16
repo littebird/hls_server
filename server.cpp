@@ -77,7 +77,6 @@ void Server::start_conn()
             else if(events[i].events & EPOLLIN)
             {
 
-
                 if(users[sockfd]->read())
                 {
                     std::function<void()> task=std::bind(&Connection::process,this->users[sockfd]);
@@ -94,7 +93,7 @@ void Server::start_conn()
             {
                 if(!users[sockfd]->write())
                 {
-                    std::cout<<"close connection3"<<std::endl;
+                    std::cout<<"close connection write error"<<std::endl;
                     users[sockfd]->close_conn();
                 }
             }

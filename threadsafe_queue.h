@@ -10,7 +10,7 @@ class threadsafe_queue
 {
 public:
     threadsafe_queue(){}
-    bool try_pop(T value){
+    bool try_pop(T &value){
         std::unique_lock<std::mutex> lk(mt);
         if(data_queue.empty())
             return false;

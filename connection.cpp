@@ -75,10 +75,12 @@ bool Connection::read()
     //读取所有数据
     int bytes_read=0;
     memset(m_read_buf,'\0',sizeof(m_read_buf));
+
     while(true)
     {
 
         bytes_read=recv(m_sockfd,m_read_buf,READ_BUFFER_SIZE,0);
+        std::cout<<bytes_read<<std::endl;
 
         if(bytes_read==-1)
         {
@@ -132,42 +134,32 @@ bool Connection::write()
 
 void Connection::process(Connection *conn_data)
 {
+
     //线程处理发过来的数据
-    QJsonDocument doc(QJsonDocument::fromJson(QByteArray(conn_data->m_jsonStr.c_str())));
-    QJsonObject obj=doc.object();
-    std::string id=obj.value("id").toString().toStdString();
-    std::string file_name=obj.value("postfix").toString().toStdString();
-    std::string data=obj.value("data").toString().toStdString();
+//    QJsonDocument doc(QJsonDocument::fromJson(QByteArray(conn_data->m_jsonStr.c_str())));
+//    QJsonObject obj=doc.object();
+//    std::string id=obj.value("id").toString().toStdString();
+//    std::string file_name=id+"."+obj.value("postfix").toString().toStdString();
+//    std::string data=obj.value("data").toString().toStdString();
 
     //视频数据写入到文件
-     conn_data->m_file.open("../hls_server/resource/"+id+file_name,std::ios::out|std::ios::app);
-     conn_data->m_file<<data<<"\n";//数据写入文件
-     conn_data->m_file.close();//关闭文件
+//     conn_data->m_file.open("../hls_server/resource/"+file_name,std::ios::out|std::ios::app);
+//     conn_data->m_file<<data;//数据写入文件
+//     conn_data->m_file.close();//关闭文件
 
-//    QString cc(id.c_str());
-//    //编辑发送数据
+//     std::string full_path="../hls_server/resource/"+file_name;
+//     //处理接收到的数据
+//     Encoder encoder;
+//     encoder.VOD(full_path.c_str());//转码播放
+//     //to do 切片生成m3u8文件
 
-    std::string send_data="http://127.0.0.1/xx.m3u8";
+//     segmenter seg{"../hls_server/tests.ts"};
+//     seg.init();
+//     seg.slice();
 
-    strcpy(conn_data->m_write_buf,send_data.data());
+//     //处理将要写的数据
+//    std::string send_data="http://10.252.154.131/hls/seg.m3u8";
 
-//    modfd(m_epollfd,conn_data->m_sockfd,EPOLLOUT);
-//    std::cout<<conn_data->m_sockfd<<std::endl;
-
-    std::cout<<conn_data->m_jsonStr.size()<<std::endl;
-
-         //处理接收到的数据
-     //    Encoder encoder;
-     //    encoder.VOD("../hls_server/test.mp4");//转码播放
-         //to do 切片生成m3u8文件
-
-     //    segmenter seg{"../hls_server/tests.ts"};
-     //    seg.init();
-     //    seg.slice();
-
-     //处理将要写的数据
-//    std::string send_data="https://127.0.0.1/xx.m3u8";
-//    conn_data->m_id+=send_data;
 //    strcpy(conn_data->m_write_buf,send_data.data());
 
 //    modfd(m_epollfd,conn_data->m_sockfd,EPOLLOUT);
