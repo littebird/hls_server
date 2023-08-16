@@ -14,6 +14,9 @@
 #include<errno.h>
 #include<string.h>
 #include<iostream>
+#include "encoder.h"
+#include "segmenter.h"
+
 class Connection
 {
 public:

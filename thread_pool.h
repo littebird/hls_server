@@ -29,14 +29,16 @@ public:
     thread_pool();
     ~thread_pool();
     void worker_thread();
+
     template<typename func>
-    void submit(func f(Connection *conn_data)){//函数模板，提交一个任务到任务队列中
-        work_queue.push(std::function<void(Connection *)>(f));
+    void submit(func f){//函数模板，提交一个任务到任务队列中
+
+        work_queue.push(f);
     }
 private:
-    std::atomic_bool done;
+    std::atomic_bool done;//原子变量控制线程池的运行
     join_threads joiner;
-    threadsafe_queue<std::function<void(Connection *)>> work_queue;
+    threadsafe_queue<std::function<void()> > work_queue;
     std::vector<std::thread> threads;
 };
 

@@ -22,14 +22,11 @@ thread_pool::~thread_pool()
 void thread_pool::worker_thread()
 {
     while(!done){
-        std::function<void(Connection *)>task(Connection *conn_data);
+        std::function<void()>task;
 
         if(work_queue.try_pop(task))
         {
-
-            Connection *data=new Connection();
-            task(data);
-
+            task();
         }
 
         else

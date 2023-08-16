@@ -4,6 +4,7 @@
 extern void removefd(int epollfd, int fd);
 extern void addfd(int epollfd, int fd, bool one_shot);
 extern void modfd(int epollfd, int fd, int ev);
+
 Server::Server()
     :m_port{9999},
      users{std::vector<Connection *>(10000,new Connection())},
@@ -19,7 +20,7 @@ Server::Server()
      //绑定
      struct sockaddr_in add_ress;
      add_ress.sin_family=AF_INET;
-     add_ress.sin_addr.s_addr=inet_addr("10.252.213.110");
+     add_ress.sin_addr.s_addr=inet_addr("10.252.154.131");
      add_ress.sin_port=htons(m_port);
      bind(listenfd,(struct sockaddr *)&add_ress,sizeof(add_ress));
 
@@ -28,12 +29,17 @@ Server::Server()
 
      //创建epoll对象
      events=new epoll_event[10000];
-     epollfd=epoll_create(10);
+     epollfd=epoll_create1(0);
 
      //将监听的文件描述符添加到epoll对象中
      addfd(epollfd,listenfd,false);
      Connection::m_epollfd=epollfd;
 
+}
+
+Server::~Server()
+{
+    delete []events;
 }
 
 void Server::start_conn()
@@ -60,25 +66,31 @@ void Server::start_conn()
 
                 //将新的客户数据初始化，放到数组中
                 users[connfd]->init(connfd,client_address);
-
+                std::cout<<"clie connect me"<<std::endl;
             }
             else if(events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
             {
                 //异常断开或错误事件
-                std::cout<<"Exception close connection:"<<sockfd<<std::endl;
+                std::cout<<"Exception close connection fd: "<<sockfd<<std::endl;
                 users[sockfd]->close_conn();
             }
             else if(events[i].events & EPOLLIN)
             {
+
+
                 if(users[sockfd]->read())
                 {
                     //一次性把所有数据读完
-//                    pool->append(&userss[sockfd].user_conn);
-                    pool->submit(users[sockfd]->process);
+
+//                    pool->submit(std::bind(Connection::process,this->users[sockfd]));
+
+                    std::function<void()> task=std::bind(&Connection::process,this->users[sockfd]);
+                    pool->submit(task);
+
                 }
                 else
                 {
-                    std::cout<<"close connection2"<<std::endl;
+                    std::cout<<"close connection"<<std::endl;
                     users[sockfd]->close_conn();
                 }
             }

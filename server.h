@@ -1,15 +1,11 @@
 #ifndef SERVER_H
 #define SERVER_H
 
-#include<iostream>
-#include<sys/socket.h>
-#include<netinet/in.h>
-#include<arpa/inet.h>
+
 #include<errno.h>
-#include<fcntl.h>
 #include<sys/epoll.h>
 #include<vector>
-#include <boost/shared_ptr.hpp>
+
 #include"connection.h"
 #include"thread_pool.h"
 
@@ -17,7 +13,7 @@ class Server
 {
 public:
     Server();
-
+    ~Server();
     void start_conn();
 private:
     int  m_port;//端口号
